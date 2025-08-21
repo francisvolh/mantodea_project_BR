@@ -13,13 +13,14 @@ main_raw <- read.csv("data/Data de ocurrencia_ad_n_ninf.csv")
 
 
 #load dataset with high accuracy for extraction of env variables
-
+#
+#
 
 #head(mapa_olson)
 #names(mapa_olson)
 #terra::plot(mapa_olson)
 
-head(main_raw)
+#head(main_raw)
 
 # Format data frame, lon and lat, posixct Month label, 
 
@@ -32,6 +33,7 @@ main_data <- main_raw|>
     time_date = as.POSIXct(time_observed_at, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
     month = lubridate::month(time_date)
   )
+
 
 #######################
 ## Map 1. ecoregion in Rio
@@ -63,20 +65,23 @@ olson_sub <- terra::crop(mapa_olson, c(-45.0656538667, -40.0297000036, -23.34136
 # crop geo political map to raw obs with a small buffer
 
 #now is crop to only rio
-geo_pol_crop <- terra::subset(geo_pol, 
-                              geo_pol$NAME_1 == "Rio de Janeiro", names(geo_pol))
+#geo_pol_crop <- terra::subset(geo_pol, 
+ #                             geo_pol$NAME_1 == "Rio de Janeiro", names(geo_pol))
 
 geo_pol_crop_alt <- terra::crop(geo_pol, c(-45.0656538667, -40.0297000036, -23.3413619722, -20.575620752))
 
 
-uno <- ggplot2::ggplot()+
-  tidyterra::geom_spatvector(data=geo_pol_crop)
-dos <- ggplot2::ggplot()+
-  tidyterra::geom_spatvector(data=geo_pol_crop_alt)+
-  ggplot2::coord_sf(expand = FALSE)
+#uno <- ggplot2::ggplot()+
+ # tidyterra::geom_spatvector(data=geo_pol_crop)
+#dos <- ggplot2::ggplot()+
+ # tidyterra::geom_spatvector(data=geo_pol_crop_alt)+
+  #ggplot2::coord_sf(expand = FALSE)
 
-cowplot::plot_grid(uno, dos, nrow = 1)
+#cowplot::plot_grid(uno, dos, nrow = 1)
 
+#######################
+## Map 1. ecoregion in Rio
+#######################
 
 basic_eco_geopol <- ggplot2::ggplot()+
   tidyterra::geom_spatvector(data = geo_pol_crop_alt)+ #extra base layer for white background
@@ -97,12 +102,15 @@ ggplot2::ggsave(basic_eco_geopol, filename = "C:/Users/franc/Documents/Research/
                 units = "in", 
                 bg = "white")
 
+#######################
+## Map 2. ecoregion in Rio and full dataset as points
+#######################
 
 eco_map_01 <- ggplot2::ggplot()+
- tidyterra::geom_spatvector(data = olson_sub, ggplot2::aes(fill = ECO_NAME), color = "transparent",  alpha = 0.45)+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt)+ #extra base layer for white background
+  tidyterra::geom_spatvector(data = olson_sub, ggplot2::aes(fill = ECO_NAME), color = "transparent",  alpha = 0.45)+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt, alpha=0)+
   tidyterra::geom_spatvector(data = vect_1  )+
-  tidyterra::geom_spatvector(data = geo_pol_crop_alt, #ggplot2::aes(fill =NAME_1 ), 
-                             alpha = 0)+
   ggplot2::coord_sf(expand = FALSE)+
   ggplot2::theme_bw()+
   ggplot2::scale_fill_discrete(name="Ecoregion (Olsen, 2001)" )+
@@ -119,7 +127,184 @@ ggplot2::ggsave(eco_map_01, filename = "C:/Users/franc/Documents/Research/Brazil
                 units = "in", 
                 bg = "white")
 
-## can modify title of legend!!!!!!!!!!!!!!!!
+
+
+
+
+########################################################
+# Map 3. Density of richness per grid cell
+########################################################
+
+##########################
+# get elevation for density grid and points
+##########################
+
+
+###option 1
+#examp_sf <- sf::st_as_sf(main_data, coords = c("longitude", "latitude"), crs = 4326)
+
+#df_elev_epqs <- elevatr::get_elev_point(examp_sf, prj = 4326, src = "aws")
+
+#df_elev_epqs_df <- terra::as.data.frame(df_elev_epqs)
+#write.csv(df_elev_epqs_df, file = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/df_elev_epqs_df.csv")
+#df_elev_epqs_df
+#summary(df_elev_epqs)
+
+#hist(df_elev_epqs$elevation)
+
+#raster
+#elevation <- elevatr::get_elev_raster(examp_sf, z = 9)
+
+#terra::plot(terra::rast(elevation))
+#elev_rast <-terra::rast(elevation)   
+## continue below
+
+#option 2
+elev_rast <-terra::rast("C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/data/rj.tif")   
+
+terra::crs(elev_rast) <- "EPSG:4618"
+
+
+#terra::plot(elev_rast)
+#terra::plot( add = TRUE, terra::project(geo_pol_crop, elev_rast))
+
+###########################################
+
+elev_rast_repoj_raw <- terra::project(elev_rast, "EPSG:4326")
+# changed project of elevation to wgs84 
+#because having issues with 1 spp falling in an edge when rasterizing
+
+
+elev_rast_repoj<- terra::aggregate(elev_rast, 6)
+
+elev_rast_repoj_dens <- terra::aggregate(elev_rast_repoj, 12)
+
+############################
+# make rasters of each species
+############################
+spp_df <- main_data |>
+  dplyr::mutate(
+    sp_name = paste0(Genus,"_", Species) )
+
+
+
+spp_df|>
+  dplyr::group_by(sp_name)|>
+  dplyr::summarise(
+    Total = dplyr::n()
+  )|>
+  dplyr::arrange((Total))
+
+
+rast_list <- NULL
+list_plots <- NULL
+for (i in 1:length(unique(spp_df$sp_name))) {
+  spp <- unique(spp_df$sp_name)[i]
+  one_spp <- spp_df |>
+    dplyr::filter(sp_name == spp)
+  
+  vect_1_spp <- terra::vect(one_spp[,c("longitude", "latitude")], 
+                            geom = c("longitude", "latitude"),
+                            crs= "EPSG:4326")
+  
+  #vect_1_spp <- terra::project(vect_1_spp, elev_rast_repoj)
+  #print(vect_1_spp)
+  rast1spp <- terra::rasterize(vect_1_spp, elev_rast_repoj_dens
+                               , fun = "count")
+  
+  rast1spp <- terra::ifel(rast1spp > 0 ,1, 0) 
+  rast1spp <- terra::ifel(is.na(rast1spp), 0, rast1spp) 
+  #terra::plot(rast1spp)
+  #title(paste(spp, i))
+  names(rast1spp) <- spp
+  rast_list[[i]] <- rast1spp
+  
+  one_plot <- ggplot2::ggplot()+
+    tidyterra::geom_spatraster(data = rast1spp)+
+    ggplot2::scale_fill_viridis_c(direction = -1)+
+    ggplot2::coord_sf(expand = FALSE)+
+    ggplot2::theme(legend.position = "none")+
+    ggplot2::ggtitle(spp)
+  
+  list_plots[[i]] <- one_plot
+  
+  #readline('next')
+  
+}
+
+
+rasters_all <- terra::rast(rast_list)
+
+#terra::plot(rasters_all)
+
+plot_grid_br <- cowplot::plot_grid( plotlist =list_plots, nrow = 7, ncol = 5)
+
+ggplot2::ggsave(plot_grid_br,
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/plot_grid1_aggv2.png",
+                height = 15, width = 15, 
+                bg =  "white",
+                dpi = 300)
+
+sum_rasts <-terra::app(rasters_all, fun = "sum")
+
+sum_rasts <- terra::ifel(sum_rasts == 0, NA, sum_rasts)
+
+
+#geo_pol_crop2<- terra::project(geo_pol,"EPSG:31983")
+
+geo_pol_crop2 <- terra::crop(geo_pol_crop_alt, sum_rasts)
+
+basic_density <- ggplot2::ggplot()+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt)+  
+  tidyterra::geom_spatraster(data = terra::crop(sum_rasts, geo_pol_crop_alt, snap = "in"))+
+  ggplot2::scale_fill_viridis_c(direction = -1, na.value = "transparent")+
+  ggplot2::theme_bw()+
+  ggplot2::coord_sf(expand = FALSE)
+  
+
+ggplot2::ggsave(basic_density,
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/basic_density_v2.png",
+                height = 5, width = 7, 
+                bg =  "white",
+                dpi = 300)
+
+
+
+
+
+######################## continuar arreglando
+
+
+
+
+
+density_v1 <- ggplot2::ggplot()+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt)+  
+  tidyterra::geom_spatvector(data = olson_sub, 
+                             ggplot2::aes(fill = ECO_NAME), 
+                             color = "transparent",  alpha = 0.45)+
+  ggplot2::scale_fill_discrete(name="Ecoregion (Olsen, 2001)" )+
+  ggnewscale::new_scale_fill()+
+  tidyterra::geom_spatraster(data = terra::crop(sum_rasts, geo_pol_crop_alt, snap = "in"))+
+  ggplot2::scale_fill_viridis_c(name="Species Richness",direction = -1, na.value = "transparent")+
+  ggplot2::theme_bw()+
+  ggplot2::coord_sf(expand = FALSE)
+
+ggplot2::ggsave(density_v1,
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/density_v1.png",
+                height = 4.5, width = 8, 
+                bg =  "white",
+                dpi = 300)
+#########################################################
+
+
+###############################
+# Phenology plots (monthly richness)
+###############################
+
+
+
+
 
 
 
@@ -180,43 +365,15 @@ summary(main_data)
 summary(main_raw)
 
 
-##########################
-#get elevation for points
-##########################
 
 
-###option 1
-#examp_sf <- sf::st_as_sf(main_data, coords = c("longitude", "latitude"), crs = 4326)
-
-#df_elev_epqs <- elevatr::get_elev_point(examp_sf, prj = 4326, src = "aws")
-
-#df_elev_epqs_df <- terra::as.data.frame(df_elev_epqs)
-#write.csv(df_elev_epqs_df, file = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/df_elev_epqs_df.csv")
-#df_elev_epqs_df
-#summary(df_elev_epqs)
-
-#hist(df_elev_epqs$elevation)
-
-#raster
-#elevation <- elevatr::get_elev_raster(examp_sf, z = 9)
-
-#terra::plot(terra::rast(elevation))
-#elev_rast <-terra::rast(elevation)   
-## continue below
-
-#option 2
-elev_rast <-terra::rast("C:/Users/franc/Documents/Research/Brazil - julio insectos/rj.tif")   
-
-terra::crs(elev_rast) <- "EPSG:4618"
 
 
-terra::plot(elev_rast)
-terra::plot( add = TRUE, terra::project(geo_pol_crop, elev_rast))
 
-###########################################
-elev_rast_repoj <- terra::project(elev_rast, "EPSG:31983")
 
-elev_rast_repoj<- terra::aggregate(elev_rast_repoj, 6)
+
+
+
 
 elev_map01 <- ggplot2::ggplot()+
   tidyterra::geom_spatraster(data = elev_rast_repoj)+
@@ -344,6 +501,7 @@ ggplot2::ggsave(elev_means_01_fams, filename = "C:/Users/franc/Documents/Researc
                 units = "in", 
                 bg = "white")
 
+
 vector_order <- read.csv("C:/Users/franc/Documents/Research/Brazil - julio insectos/Species ordered by family - Hoja 1.csv")
 head(vector_order)
 vector_order$spp <- paste0(vector_order$Species,"_",vector_order$X )
@@ -387,104 +545,6 @@ ggplot2::ggsave(elev_means_02, filename = "C:/Users/franc/Documents/Research/Bra
 
 # reproject
 # EPSG:31983 and the administrative region in EPSG:29193
-
-
-############################
-# make rasters of each species
-############################
-spp_df <-main_data |>
-  dplyr::mutate(
-   sp_name = paste0(Genus     ,"_", Species) )
-
-rast_list <- NULL
-list_plots <- NULL
-for (i in 1:length(unique(spp_df$sp_name))) {
-  spp <- unique(spp_df$sp_name)[i]
-  one_spp <- spp_df |>
-    dplyr::filter(sp_name == spp)
-  
-  vect_1_spp <- terra::vect(one_spp[,c("longitude", "latitude")], 
-                        geom = c("longitude", "latitude"),
-                        crs= "EPSG:4326")
-  
-  vect_1_spp <- terra::project(vect_1_spp, elev_rast_repoj)
-  #print(vect_1_spp)
-  rast1spp <- terra::rasterize(vect_1_spp, elev_rast_repoj
-                               , fun = "count")
-  
-  rast1spp <- terra::ifel(rast1spp >0 ,1, 0) 
-  rast1spp <- terra::ifel(is.na(rast1spp), 0, rast1spp) 
-  #terra::plot(rast1spp)
-  #title(paste(spp, i))
- names(rast1spp) <- spp
-  rast_list[[i]] <- rast1spp
-  
-  one_plot <- ggplot2::ggplot()+
-                tidyterra::geom_spatraster(data = rast1spp)+
-                ggplot2::scale_fill_viridis_c(direction = -1)+
-                ggplot2::coord_sf(expand = FALSE)+
-                ggplot2::theme(legend.position = "none")+
-                ggplot2::ggtitle(spp)
-  
-  list_plots[[i]] <- one_plot
-  
-  #readline('next')
-  
-  }
-
-
-rasters_all <- terra::rast(rast_list)
-
-#terra::plot(rasters_all)
-
-plot_grid_br <- cowplot::plot_grid( plotlist =list_plots, nrow = 7, ncol = 5)
-
-ggplot2::ggsave(plot_grid_br,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/plot_grid1.png",
-                height = 15, width = 10, 
-                bg =  "white",
-                dpi = 300)
-
-sum_rasts <-terra::app(rasters_all, fun = "sum")
-
-sum_rasts <- terra::ifel(sum_rasts == 0, NA, sum_rasts)
-
-
-
-geo_pol_crop2<- terra::project(geo_pol,"EPSG:31983")
-
-geo_pol_crop2 <- terra::crop(geo_pol_crop2, sum_rasts)
-
-basic_density <- ggplot2::ggplot()+
-  tidyterra::geom_spatvector(data = terra::project(geo_pol_crop2, terra::crs(sum_rasts)))+  
-  tidyterra::geom_spatraster(data = sum_rasts)+
-  ggplot2::scale_fill_viridis_c(direction = -1, na.value = "transparent")+
-  ggplot2::coord_sf(expand = FALSE)
-ggplot2::ggsave(basic_density,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/basic_density.png",
-                height = 5, width = 7, 
-                bg =  "white",
-                dpi = 300)
-
-density_v1 <- ggplot2::ggplot()+
-  tidyterra::geom_spatvector(data = terra::project(geo_pol_crop2, terra::crs(sum_rasts)))+ 
-  ggnewscale::new_scale_fill()+
-  tidyterra::geom_spatvector(data = olson_sub, 
-                             ggplot2::aes(fill = ECO_NAME), 
-                             color = "transparent",  alpha = 0.45)+
-  ggnewscale::new_scale_fill()+
-  
-  tidyterra::geom_spatraster(data = sum_rasts, alpha = 0.5)+
-  ggplot2::scale_fill_viridis_c(direction = -1, na.value = "transparent")+
-  ggplot2::coord_sf(expand = FALSE)
-
-  
-ggplot2::ggsave(density_v1,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/density_v1.png",
-                height = 4.5, width = 8, 
-                bg =  "white",
-                dpi = 300)
-
 
 
 
