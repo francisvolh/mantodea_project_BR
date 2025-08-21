@@ -1,15 +1,27 @@
-main_raw <- read.csv("C:/Users/franc/Documents/Research/Brazil - julio insectos/Data de ocurrencia_ad_n_ninf.csv")
+#load base layers
+
+mapa_olson <- terra::vect("data/official WWF/wwf_terr_ecos.shp")
+
+geo_pol <- terra::vect("data/gadm_brazil/gadm41_BRA_1.shp")
 
 
-mapa_olson <- terra::vect("C:/Users/franc/Documents/Research/Brazil - julio insectos/official WWF/wwf_terr_ecos.shp")
+## Load full dataset
 
-geo_pol <- terra::vect("C:/Users/franc/Documents/Research/Brazil - julio insectos/gadm_brazil/gadm41_BRA_1.shp")
-  
-head(mapa_olson)
-names(mapa_olson)
+# old file, will change eventually
+main_raw <- read.csv("data/Data de ocurrencia_ad_n_ninf.csv")
+
+
+
+#load dataset with high accuracy for extraction of env variables
+
+
+#head(mapa_olson)
+#names(mapa_olson)
 #terra::plot(mapa_olson)
 
 head(main_raw)
+
+# Format data frame, lon and lat, posixct Month label, 
 
 main_data <- main_raw|>
   dplyr::mutate(
@@ -20,6 +32,98 @@ main_data <- main_raw|>
     time_date = as.POSIXct(time_observed_at, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
     month = lubridate::month(time_date)
   )
+
+#######################
+## Map 1. ecoregion in Rio
+#######################
+
+
+
+#head(main_data)
+
+#main_data[which(is.na(main_data$latitude)),]
+
+#main_data[420,]
+#main_data[973,]
+
+#produce vector of all locations
+# to use for cropping later the ecoregions and political map
+
+vect_1 <- terra::vect(main_data[,c("longitude", "latitude")], 
+            geom = c("longitude", "latitude"),
+            crs= "EPSG:4326")
+
+#terra::plot(vect_1)
+extent_samp <-terra::ext(vect_1)
+
+# crop olson to raw obs with a small buffer
+olson_sub <- terra::crop(mapa_olson, c(-45.0656538667, -40.0297000036, -23.3413619722, -20.575620752))
+#terra::plot(olson_sub)
+
+# crop geo political map to raw obs with a small buffer
+
+#now is crop to only rio
+geo_pol_crop <- terra::subset(geo_pol, 
+                              geo_pol$NAME_1 == "Rio de Janeiro", names(geo_pol))
+
+geo_pol_crop_alt <- terra::crop(geo_pol, c(-45.0656538667, -40.0297000036, -23.3413619722, -20.575620752))
+
+
+uno <- ggplot2::ggplot()+
+  tidyterra::geom_spatvector(data=geo_pol_crop)
+dos <- ggplot2::ggplot()+
+  tidyterra::geom_spatvector(data=geo_pol_crop_alt)+
+  ggplot2::coord_sf(expand = FALSE)
+
+cowplot::plot_grid(uno, dos, nrow = 1)
+
+
+basic_eco_geopol <- ggplot2::ggplot()+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt)+ #extra base layer for white background
+  tidyterra::geom_spatvector(data = olson_sub, ggplot2::aes(fill = ECO_NAME), color = "transparent",  alpha = 0.45)+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt, alpha=0)+
+  ggplot2::theme_bw()+
+  ggplot2::coord_sf(expand = FALSE)+
+  ggplot2::scale_fill_discrete(name="Ecoregion (Olsen, 2001)" )+
+  ggspatial::annotation_north_arrow(location= "br",
+                                    pad_y = grid::unit(0.25, "in"),
+                                    width = grid::unit(1, "cm"))+
+  ggspatial::annotation_scale(location= "br")
+
+ggplot2::ggsave(basic_eco_geopol, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/basic_eco_geopolv1.png",
+                height =  3.75,
+                width = 8,
+                dpi = 300, 
+                units = "in", 
+                bg = "white")
+
+
+eco_map_01 <- ggplot2::ggplot()+
+ tidyterra::geom_spatvector(data = olson_sub, ggplot2::aes(fill = ECO_NAME), color = "transparent",  alpha = 0.45)+
+  tidyterra::geom_spatvector(data = vect_1  )+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt, #ggplot2::aes(fill =NAME_1 ), 
+                             alpha = 0)+
+  ggplot2::coord_sf(expand = FALSE)+
+  ggplot2::theme_bw()+
+  ggplot2::scale_fill_discrete(name="Ecoregion (Olsen, 2001)" )+
+  ggspatial::annotation_north_arrow(location= "br",
+                                    pad_y = grid::unit(0.25, "in"),
+                                    width = grid::unit(1, "cm"))+
+  ggspatial::annotation_scale(location= "br")
+
+
+ggplot2::ggsave(eco_map_01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/eco_map_01v2.png",
+                height =  3.75,
+                width = 8,
+                dpi = 300, 
+                units = "in", 
+                bg = "white")
+
+## can modify title of legend!!!!!!!!!!!!!!!!
+
+
+
+
 
 
 plot_phenology01 <- main_data |>
@@ -75,48 +179,6 @@ ggplot2::ggsave(phenology_grid01, filename = "C:/Users/franc/Documents/Research/
 summary(main_data)
 summary(main_raw)
 
-
-#head(main_data)
-
-#main_data[which(is.na(main_data$latitude)),]
-
-#main_data[420,]
-#main_data[973,]
-
-vect_1 <- terra::vect(main_data[,c("longitude", "latitude")], 
-            geom = c("longitude", "latitude"),
-            crs= "EPSG:4326")
-
-#terra::plot(vect_1)
-extent_samp <-terra::ext(vect_1)
-
-olson_sub <- terra::crop(mapa_olson, c(-45.0656538667, -40.0297000036, -23.3413619722, -20.575620752))
-#terra::plot(olson_sub)
-
-geo_pol_crop <- terra::subset(geo_pol, 
-                              geo_pol$NAME_1 == "Rio de Janeiro", names(geo_pol))
-
-
-
-eco_map_01 <- ggplot2::ggplot()+
- tidyterra::geom_spatvector(data = olson_sub, ggplot2::aes(fill = ECO_NAME), color = "transparent",  alpha = 0.45)+
-  tidyterra::geom_spatvector(
-    data = vect_1
-  )+
-  #ggnewscale::new_scale_fill()+
-  tidyterra::geom_spatvector(data = geo_pol_crop, #ggplot2::aes(fill =NAME_1 ), 
-                             alpha = 0)+
-  ggplot2::coord_sf(expand = FALSE)+
-  ggplot2::theme_bw()
-
-ggplot2::ggsave(eco_map_01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/eco_map_01v2.png",
-                height =  3.75,
-                width = 8,
-                dpi = 300, 
-                units = "in", 
-                bg = "white")
-
-## can modify title of legend!!!!!!!!!!!!!!!!
 
 ##########################
 #get elevation for points
