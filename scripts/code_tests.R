@@ -7,20 +7,18 @@ geo_pol <- terra::vect("data/gadm_brazil/gadm41_BRA_1.shp")
 
 ## Load full dataset
 
-# old file, will change eventually
+# RAw file with high a low accuray, only for general stuff, not elevation or temp calcs
 main_raw <- read.csv("data/Data de ocurrencia_ad_n_ninf.csv")
 
-
+list.files("data")
+main_accurate <- read.csv("data/Final Dataset with accuracy _500m  - Adultos+Ninfas.csv")
 
 #load dataset with high accuracy for extraction of env variables
 #
 #
 
-#head(mapa_olson)
-#names(mapa_olson)
-#terra::plot(mapa_olson)
-
 #head(main_raw)
+summary(main_accurate)
 
 # Format data frame, lon and lat, posixct Month label, 
 
@@ -35,9 +33,9 @@ main_data <- main_raw|>
   )
 
 
-#######################
-## Map 1. ecoregion in Rio
-#######################
+#####################################################################
+##  1. Map of ecoregions in Rio
+#####################################################################
 
 
 
@@ -51,9 +49,9 @@ main_data <- main_raw|>
 #produce vector of all locations
 # to use for cropping later the ecoregions and political map
 
-vect_1 <- terra::vect(main_data[,c("longitude", "latitude")], 
-            geom = c("longitude", "latitude"),
-            crs= "EPSG:4326")
+vect_1 <- terra::vect(main_data[,c("longitude", "latitude", "Family")], 
+                      geom = c("longitude", "latitude"),
+                      crs= "EPSG:4326")
 
 #terra::plot(vect_1)
 extent_samp <-terra::ext(vect_1)
@@ -66,22 +64,19 @@ olson_sub <- terra::crop(mapa_olson, c(-45.0656538667, -40.0297000036, -23.34136
 
 #now is crop to only rio
 #geo_pol_crop <- terra::subset(geo_pol, 
- #                             geo_pol$NAME_1 == "Rio de Janeiro", names(geo_pol))
+#                             geo_pol$NAME_1 == "Rio de Janeiro", names(geo_pol))
 
 geo_pol_crop_alt <- terra::crop(geo_pol, c(-45.0656538667, -40.0297000036, -23.3413619722, -20.575620752))
 
 
 #uno <- ggplot2::ggplot()+
- # tidyterra::geom_spatvector(data=geo_pol_crop)
+# tidyterra::geom_spatvector(data=geo_pol_crop)
 #dos <- ggplot2::ggplot()+
- # tidyterra::geom_spatvector(data=geo_pol_crop_alt)+
-  #ggplot2::coord_sf(expand = FALSE)
+# tidyterra::geom_spatvector(data=geo_pol_crop_alt)+
+#ggplot2::coord_sf(expand = FALSE)
 
 #cowplot::plot_grid(uno, dos, nrow = 1)
 
-#######################
-## Map 1. ecoregion in Rio
-#######################
 
 basic_eco_geopol <- ggplot2::ggplot()+
   tidyterra::geom_spatvector(data = geo_pol_crop_alt)+ #extra base layer for white background
@@ -95,16 +90,13 @@ basic_eco_geopol <- ggplot2::ggplot()+
                                     width = grid::unit(1, "cm"))+
   ggspatial::annotation_scale(location= "br")
 
-ggplot2::ggsave(basic_eco_geopol, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/basic_eco_geopolv1.png",
-                height =  3.75,
-                width = 8,
-                dpi = 300, 
-                units = "in", 
-                bg = "white")
+#ggplot2::ggsave(basic_eco_geopol, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/basic_eco_geopolv1.png",
+#height =  3.75,width = 8,dpi = 300, units = "in",bg = "white")
 
-#######################
-## Map 2. ecoregion in Rio and full dataset as points
-#######################
+
+#####################################################################
+##  2. Map of ecoregions in Rio and full dataset as points
+#####################################################################
 
 eco_map_01 <- ggplot2::ggplot()+
   tidyterra::geom_spatvector(data = geo_pol_crop_alt)+ #extra base layer for white background
@@ -120,23 +112,73 @@ eco_map_01 <- ggplot2::ggplot()+
   ggspatial::annotation_scale(location= "br")
 
 
-ggplot2::ggsave(eco_map_01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/eco_map_01v2.png",
-                height =  3.75,
-                width = 8,
-                dpi = 300, 
-                units = "in", 
-                bg = "white")
+#ggplot2::ggsave(eco_map_01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/eco_map_01v2.png",
+#                height =  3.75,width = 8,dpi = 300, units = "in",bg = "white")
 
 
 
+####
+# maps of genera
+
+vector_order <- read.csv("C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/data/Species ordered by family - Hoja 1.csv")
 
 
-########################################################
-# Map 3. Density of richness per grid cell
-########################################################
+head(vector_order)
+vector_order$spp <- paste0(vector_order$Species,"_",vector_order$X )
+vector_order<-vector_order$spp
+
+
+
+species_raw_grid <- main_data |>
+  dplyr::mutate(
+    Genus = as.factor(Genus),
+    Species = as.factor(Species),
+    sp_name = paste0(Genus,"_", Species)#,
+    #sp_name = factor(sp_name, levels = vector_order)
+  )|>
+  dplyr::pull(sp_name)|>
+  unique()
+
+###################################################################
+##  3. Grid of species maps and their respective data points
+###################################################################
+
+plot_grip_spp_points<- main_data |>
+  dplyr::mutate(
+    Genus = as.factor(Genus),
+    Species = as.factor(Species),
+    sp_name = paste0(Genus,"_", Species),
+    sp_name = factor(sp_name, levels = vector_order)
+  )|>
+  dplyr::select("longitude", "latitude", "sp_name")|>
+  terra::vect(
+              geom = c("longitude", "latitude"),
+              crs= "EPSG:4326")|>
+  ggplot2::ggplot()+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt)+ #extra base layer for white background
+  tidyterra::geom_spatvector(data = olson_sub, ggplot2::aes(fill = ECO_NAME), color = "transparent",  alpha = 0.45)+
+  tidyterra::geom_spatvector(data = geo_pol_crop_alt, alpha=0)+
+  tidyterra::geom_spatvector( )+
+  ggplot2::coord_sf(expand = FALSE)+
+  ggplot2::theme_bw()+
+  ggplot2::scale_fill_discrete(name="Ecoregion (Olsen, 2001)" )+
+  ggspatial::annotation_north_arrow(location= "br",
+                                    pad_y = grid::unit(0.25, "in"),
+                                    width = grid::unit(1, "cm"))+
+  ggspatial::annotation_scale(location= "br")+
+  ggplot2::facet_wrap(~sp_name)+
+  ggplot2::theme(legend.position = "none")
+
+ggplot2::ggsave(plot_grip_spp_points, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/eco_map_raw_points01_spp.png",
+            height =  15,width = 18,dpi = 300, units = "in",bg = "white")
+
+
+########################################################################
+### 4) Map of Species Richness map and ecoregions (as cells of richness)
+########################################################################
 
 ##########################
-# get elevation for density grid and points
+# get elevation raster for base density grid and points
 ##########################
 
 
@@ -146,7 +188,7 @@ ggplot2::ggsave(eco_map_01, filename = "C:/Users/franc/Documents/Research/Brazil
 #df_elev_epqs <- elevatr::get_elev_point(examp_sf, prj = 4326, src = "aws")
 
 #df_elev_epqs_df <- terra::as.data.frame(df_elev_epqs)
-#write.csv(df_elev_epqs_df, file = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/df_elev_epqs_df.csv")
+#write.csv(df_elev_epqs_df, file = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/df_elev_epqs_df.csv")
 #df_elev_epqs_df
 #summary(df_elev_epqs)
 
@@ -160,6 +202,11 @@ ggplot2::ggsave(eco_map_01, filename = "C:/Users/franc/Documents/Research/Brazil
 ## continue below
 
 #option 2
+# Source
+# https://www.ufrgs.br/labgeo/index.php/downloads/dados-geoespaciais/modelos-digitais-de-elevacao-dos-estados-brasileiros-obtidos-a-partir-do-srtm-shuttle-radar-topography-mission/modelos-digitais-de-elevacao-do-srtm-no-formato-geotiff/
+# UFRGS IB Centro de Ecologia Laboratório de Geoprocessamento
+## WEBER, E.; HASENACK, H.; FERREIRA, C.J.S. 2004. Adaptação do modelo digital de elevação do SRTM para o sistema de referência oficial brasileiro e recorte por unidade da federação. Porto Alegre, UFRGS Centro de Ecologia. ISBN 978-85-63843-02-9. Disponível em http://www.ufrgs.br/labgeo.
+##
 elev_rast <-terra::rast("C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/data/rj.tif")   
 
 terra::crs(elev_rast) <- "EPSG:4618"
@@ -171,13 +218,18 @@ terra::crs(elev_rast) <- "EPSG:4618"
 ###########################################
 
 elev_rast_repoj_raw <- terra::project(elev_rast, "EPSG:4326")
+
+#elev_rast_repoj_raw <- terra::project(elev_rast, "EPSG:31983")
+
+
 # changed project of elevation to wgs84 
 #because having issues with 1 spp falling in an edge when rasterizing
 
 
-elev_rast_repoj<- terra::aggregate(elev_rast, 6)
+#elev_rast_repoj<- terra::aggregate(elev_rast_repoj_raw, 6)
 
-elev_rast_repoj_dens <- terra::aggregate(elev_rast_repoj, 12)
+# dens version is to plot the density map with a large pixel/cell size
+elev_rast_repoj_dens <- terra::aggregate(elev_rast_repoj_raw, 42)
 
 ############################
 # make rasters of each species
@@ -186,14 +238,12 @@ spp_df <- main_data |>
   dplyr::mutate(
     sp_name = paste0(Genus,"_", Species) )
 
-
-
-spp_df|>
-  dplyr::group_by(sp_name)|>
-  dplyr::summarise(
-    Total = dplyr::n()
-  )|>
-  dplyr::arrange((Total))
+#spp_df|>
+# dplyr::group_by(sp_name)|>
+#dplyr::summarise(
+# Total = dplyr::n()
+#)|>
+#dplyr::arrange((Total))
 
 
 rast_list <- NULL
@@ -207,8 +257,9 @@ for (i in 1:length(unique(spp_df$sp_name))) {
                             geom = c("longitude", "latitude"),
                             crs= "EPSG:4326")
   
-  #vect_1_spp <- terra::project(vect_1_spp, elev_rast_repoj)
+  vect_1_spp <- terra::project(vect_1_spp, elev_rast_repoj_dens)
   #print(vect_1_spp)
+  # to dens rast for plotting
   rast1spp <- terra::rasterize(vect_1_spp, elev_rast_repoj_dens
                                , fun = "count")
   
@@ -239,11 +290,11 @@ rasters_all <- terra::rast(rast_list)
 
 plot_grid_br <- cowplot::plot_grid( plotlist =list_plots, nrow = 7, ncol = 5)
 
-ggplot2::ggsave(plot_grid_br,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/plot_grid1_aggv2.png",
-                height = 15, width = 15, 
-                bg =  "white",
-                dpi = 300)
+#ggplot2::ggsave(plot_grid_br,
+ #               filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/plot_grid_spp_densag42.png",
+  #              height = 15, width = 15, 
+   #             bg =  "white",
+    #            dpi = 300)
 
 sum_rasts <-terra::app(rasters_all, fun = "sum")
 
@@ -252,32 +303,37 @@ sum_rasts <- terra::ifel(sum_rasts == 0, NA, sum_rasts)
 
 #geo_pol_crop2<- terra::project(geo_pol,"EPSG:31983")
 
-geo_pol_crop2 <- terra::crop(geo_pol_crop_alt, sum_rasts)
+geo_pol_crop2 <- terra::crop(terra::project(geo_pol_crop_alt, sum_rasts), sum_rasts)
 
 basic_density <- ggplot2::ggplot()+
-  tidyterra::geom_spatvector(data = geo_pol_crop_alt)+  
-  tidyterra::geom_spatraster(data = terra::crop(sum_rasts, geo_pol_crop_alt, snap = "in"))+
-  ggplot2::scale_fill_viridis_c(direction = -1, na.value = "transparent")+
+  tidyterra::geom_spatvector(data = geo_pol_crop2)+  
+  tidyterra::geom_spatraster(data = terra::crop(sum_rasts, geo_pol_crop2, snap = "in"))+
+  ggplot2::scale_fill_viridis_c(name = "Species Richness", direction = -1, na.value = "transparent")+
   ggplot2::theme_bw()+
-  ggplot2::coord_sf(expand = FALSE)
   
-
-ggplot2::ggsave(basic_density,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/basic_density_v2.png",
-                height = 5, width = 7, 
-                bg =  "white",
-                dpi = 300)
-
-
-
-
-
-######################## continuar arreglando
-
-
-
+  ggplot2::coord_sf(expand = FALSE)+
+  ggspatial::annotation_north_arrow(location= "br",
+                                    pad_y = grid::unit(0.25, "in"),
+                                     width = grid::unit(1, "cm"))+
+  ggspatial::annotation_scale(location= "br")+
+  ggplot2::theme(
+    legend.position = "inside",  # ✅ This activates legend.position.inside
+    legend.direction = "horizontal",  # 🔄 Horizontal layout
+    legend.position.inside = c(0.35, 0.9, 0.65, 1),  # x, y, anchor_x, anchor_y
+    legend.background = ggplot2::element_rect(fill = "transparent", color = NULL),
+    legend.title = ggplot2::element_text(size = 10),
+    legend.text = ggplot2::element_text(size = 8)
+  )
 
 
+#ggplot2::ggsave(basic_density,
+ #               filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/basic_density_v3.png",
+  #              height = 5, width = 7, 
+   #             bg =  "white",
+    #            dpi = 300)
+
+
+#final product
 density_v1 <- ggplot2::ggplot()+
   tidyterra::geom_spatvector(data = geo_pol_crop_alt)+  
   tidyterra::geom_spatvector(data = olson_sub, 
@@ -288,47 +344,112 @@ density_v1 <- ggplot2::ggplot()+
   tidyterra::geom_spatraster(data = terra::crop(sum_rasts, geo_pol_crop_alt, snap = "in"))+
   ggplot2::scale_fill_viridis_c(name="Species Richness",direction = -1, na.value = "transparent")+
   ggplot2::theme_bw()+
-  ggplot2::coord_sf(expand = FALSE)
+  ggplot2::coord_sf(expand = FALSE)+
+  ggspatial::annotation_north_arrow(location= "br",
+                                    pad_y = grid::unit(0.25, "in"),
+                                    width = grid::unit(1, "cm"))+
+  ggspatial::annotation_scale(location= "br")
 
-ggplot2::ggsave(density_v1,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/density_v1.png",
-                height = 4.5, width = 8, 
-                bg =  "white",
-                dpi = 300)
-#########################################################
+#ggplot2::ggsave(density_v1,
+ #               filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/density_v1.png",
+  #              height = 5.5, width = 10.5, 
+   #             bg =  "white",
+    #            dpi = 300)
+
+
+
+
+
+
 
 
 ###############################
-# Phenology plots (monthly richness)
+# 8) Phenology cummulative adults plots (monthly richness)
 ###############################
-
-
-
-
-
-
-
-
-
 
 plot_phenology01 <- main_data |>
   dplyr::filter(!is.na(month))|>
+  dplyr::filter(Instar == "Adult")|>
   dplyr::mutate(
-    sp_name = paste0(Genus     ,"_", Species)
+    sp_name = paste0(Genus     ,"_", Species), 
+    Month = lubridate::month(time_date, label = TRUE, abbr = FALSE)
   )|>
-  dplyr::distinct(month, sp_name)|>
-  dplyr::group_by(month)|>
+  dplyr::distinct(Month, sp_name)|>
+  dplyr::group_by(Month)|>
   dplyr::summarise(
     Total_spp = dplyr::n()
   )|>
-  ggplot2::ggplot(ggplot2::aes(x=as.factor(month), y = Total_spp))+
+  ggplot2::ggplot(ggplot2::aes(x=as.factor(Month), y = Total_spp))+
   ggplot2::geom_bar( stat='identity',fill = "#56B4E9")+
-  ggplot2::ylab("Species richness")+
+  ggplot2::ylab("Species richness (adults)")+
   ggplot2::xlab("Month")+
-  ggplot2::theme_bw()
+  ggplot2::theme_bw()+  
+  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1),
+                                       legend.position = "none")
 
-ggplot2::ggsave(plot_phenology01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/plot_phenology01.png",
-                height =  3.75,
+#ggplot2::ggsave(plot_phenology01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/plot_phenology01.png",
+ #               height =  3.75,
+  #              width = 8,
+   #             dpi = 300, 
+    #            units = "in", 
+     #           bg = "white")
+
+
+# All cummulative observations: dif of instar, not informative as it dilutes species differences
+
+#plot_phenology_all_instar <- main_data |>
+ # dplyr::filter(!is.na(month))|>
+  #dplyr::mutate(
+   # sp_name = paste0(Genus     ,"_", Species), 
+    #Month = lubridate::month(time_date, label = TRUE, abbr = FALSE)
+  #)|>
+#  dplyr::group_by(sp_name,Month, Instar)|>
+ # dplyr::summarise(
+  #  Total_spp = dplyr::n()
+#  )|>
+ # ggplot2::ggplot(ggplot2::aes(x=as.factor(Month), y = Total_spp, fill =  Instar))+
+  #ggplot2::geom_bar( stat='identity')+
+  #ggplot2::ylab("Observations")+
+  #ggplot2::xlab("Month")+
+  #ggplot2::theme_bw()+  
+  #ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1)
+   #              ,legend.position = "top"
+#  )
+
+#ggplot2::ggsave(plot_phenology_all_instar, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/plot_phenology_all_instar_01.png",
+ #               height =  5.75,
+  #              width = 8,
+    #            dpi = 300, 
+     #           units = "in", 
+      #          bg = "white")
+
+####################################################### 
+### 9) Phenology adults and nymphs per species
+####################################################### 
+plot_phenology_cum <- main_data |>
+  dplyr::filter(!is.na(month))|>
+  dplyr::mutate(
+    sp_name = paste0(Genus     ,"_", Species), 
+    Month = lubridate::month(time_date, label = TRUE, abbr = FALSE)
+  )|>
+  #dplyr::distinct(Month, sp_name, Instar)|>
+  dplyr::group_by(sp_name,Month, Instar)|>
+  dplyr::summarise(
+    Total_spp = dplyr::n()
+  )|>
+  ggplot2::ggplot(ggplot2::aes(x=as.factor(Month), y = Total_spp, fill =  Instar))+
+  ggplot2::geom_bar( stat='identity')+
+  ggplot2::ylab("Observations")+
+  ggplot2::xlab("Month")+
+  ggplot2::theme_bw()+  
+  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1)
+                 ,legend.position = "top"
+                 )+
+  ggplot2::facet_wrap(~sp_name, scales="free_y", # dos versions, una con scale free y otro no
+                      ncol = 5)
+
+ggplot2::ggsave(plot_phenology_cum, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/plot_phenology_cum_01.png",
+                height =  10.75,
                 width = 8,
                 dpi = 300, 
                 units = "in", 
@@ -336,112 +457,178 @@ ggplot2::ggsave(plot_phenology01, filename = "C:/Users/franc/Documents/Research/
 
 
 
-phenology_grid01 <- main_data |>
+#phenology_grid01 <- main_data |>
+ # dplyr::filter(!is.na(month))|>
+  #dplyr::mutate(
+   # sp_name = paste0(Genus     ,"_", Species)
+  #)|>
+  #dplyr::distinct(month, sp_name)|>
+  #dplyr::group_by(month, sp_name)|> # without distinct, it just counts all obs
+  #dplyr::summarise(
+   # Total_spp = dplyr::n()
+  #)|>
+  #ggplot2::ggplot(ggplot2::aes(x=as.factor(month), y = Total_spp))+
+#  ggplot2::geom_bar( stat='identity',fill = "#56B4E9")+
+ # ggplot2::ylab("Observations")+
+  #ggplot2::xlab("Month")+
+  #ggplot2::theme_bw()+
+  #ggplot2::facet_wrap(~sp_name, scales="free_y", # dos versions, una con scale free y otro no
+   #                   ncol = 5)
+
+
+#ggplot2::ggsave(phenology_grid01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/phenology_grid02.png",
+ #               height =  12,
+  #              width = 8.5,
+   #             dpi = 300, 
+    #            units = "in", 
+     #           bg = "white")
+
+
+
+
+
+# plots of phenology only nymph and adult spp
+
+both_inst <- main_data |>
   dplyr::filter(!is.na(month))|>
   dplyr::mutate(
-    sp_name = paste0(Genus     ,"_", Species)
+    sp_name = paste0(Genus     ,"_", Species), 
+    Month = lubridate::month(time_date, label = TRUE, abbr = FALSE)
   )|>
-  #dplyr::distinct(month, sp_name)|>
-  dplyr::group_by(month, sp_name)|>
+  #dplyr::distinct(Month, sp_name, Instar)|>
+  dplyr::select(sp_name, Instar)|>
+  
+  dplyr::group_by(sp_name, Instar)|>
   dplyr::summarise(
     Total_spp = dplyr::n()
   )|>
-  ggplot2::ggplot(ggplot2::aes(x=as.factor(month), y = Total_spp))+
-  ggplot2::geom_bar( stat='identity',fill = "#56B4E9")+
-  ggplot2::ylab("Species richness")+
+  tidyr::pivot_wider(names_from = Instar, values_from =  Total_spp)|>
+  dplyr::filter(!is.na(Nymph))|>
+  dplyr::pull(sp_name)# nymphs are rare
+
+    
+
+plot_both_instar_phen <- main_data |>
+  dplyr::filter(!is.na(month))|>
+  dplyr::mutate(
+    sp_name = paste0(Genus     ,"_", Species), 
+    Month = lubridate::month(time_date, label = TRUE, abbr = FALSE)
+  )|>
+  dplyr::filter(  sp_name %in% both_inst)|>
+  
+  #dplyr::distinct(Month, sp_name, Instar)|>
+  dplyr::group_by(sp_name,Month, Instar)|>
+  dplyr::summarise(
+    Total_spp = dplyr::n()
+  )|>
+  ggplot2::ggplot(ggplot2::aes(x=as.factor(Month), y = Total_spp, fill =  Instar))+
+  ggplot2::geom_bar( stat='identity')+
+  ggplot2::ylab("Observations")+
   ggplot2::xlab("Month")+
-  ggplot2::theme_bw()+
-  ggplot2::facet_wrap(~sp_name, scales="free_y", # dos versions, una con scale free y otro no
-                      ncol = 5)
-
-
-ggplot2::ggsave(phenology_grid01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/phenology_grid02.png",
-                height =  12,
-                width = 8.5,
-                dpi = 300, 
-                units = "in", 
-                bg = "white")
-summary(main_data)
-summary(main_raw)
-
-
-
-
-
-
-
-
-
-
-
-
-elev_map01 <- ggplot2::ggplot()+
-  tidyterra::geom_spatraster(data = elev_rast_repoj)+
-  ggplot2::scale_fill_viridis_c(option = "E","Elevation")+
-  tidyterra::geom_spatvector(
-    data = vect_1, alpha = 0.5
+  ggplot2::theme_bw()+  
+  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1)
+                 ,legend.position = "top"
   )+
-  #ggnewscale::new_scale_fill()+
-  tidyterra::geom_spatvector(data = geo_pol_crop, #ggplot2::aes(fill =NAME_1 ), 
-                             alpha = 0)+
-  ggplot2::coord_sf(expand = FALSE)
+  ggplot2::facet_wrap(~sp_name, scales="free_y", # dos versions, una con scale free y otro no
+                      ncol = 3)
 
-ggplot2::ggsave(elev_map01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/elev_map02v1.png",
-                height =  5,
-                width = 7.5,
+ggplot2::ggsave(plot_both_instar_phen, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/plot_both_instar_phen_01.png",
+                height =  6,
+                width = 8,
                 dpi = 300, 
                 units = "in", 
                 bg = "white")
 
-#elevation map can be clipped of for ocean
+##############################################################
+### Elevation outputs only with HIGH accuracy data
+##############################################################
 
-#points with each elev value colored
+###############################
+## First elevation map and data is replaced with the hillshade version in a separate script
+###############################
 
 # for option 2
 
 
-df_elev_epqs_elevs <- terra::extract(elev_rast_repoj, terra::project(vect_1, elev_rast_repoj))
+main_data_acc <- main_accurate|>
+  dplyr::mutate(
+    #longitude = as.character(longitude),
+    #latitude = as.character(latitude),
+    longitude = as.numeric(longitude),
+    latitude = as.numeric(latitude),
+    time_date = as.POSIXct(time_observed_at, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    month = lubridate::month(time_date)
+  )
 
-df_elev_epqs <- main_data
+vect_2 <- terra::vect(main_data_acc[,c("longitude", "latitude", "Family")], 
+                      geom = c("longitude", "latitude"),
+                      crs= "EPSG:4326")
+
+
+# Extract elevations
+
+#reproject in UTM to check spatial resolution and match with accuray of iNat
+elev_rast_repoj <- terra::project(terra::aggregate(elev_rast_repoj_raw, 5), "EPSG:31983")
+
+
+df_elev_epqs_elevs <- terra::extract(terra::aggregate(elev_rast_repoj_raw, 5),vect_2 )
+
+#do this to follow previous pipeline with the name of dataframes
+df_elev_epqs <- main_data_acc
 df_elev_epqs$elevation <- df_elev_epqs_elevs[,2]
 
 ##
 
-
+# to observe only point with elevs
 elev_points_map1 <- df_elev_epqs|>
   #dplyr::filter(elevation >1000)|>
   terra::vect(geom=c("longitude", "latitude"), crs = terra::crs(vect_1))|>
   ggplot2::ggplot()+
-  tidyterra::geom_spatvector(data =geo_pol_crop, alpha = 0)+
+  tidyterra::geom_spatvector(data =geo_pol_crop_alt, alpha = 0)+
   tidyterra::geom_spatvector(ggplot2::aes(color = elevation))+
   ggplot2::scale_color_viridis_c()
 
 
 
-ggplot2::ggsave(elev_points_map1, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/elev_points_map2v1.png",
-                height =  5,
-                width = 7.5,
-                dpi = 300, 
-                units = "in", 
-                bg = "white")
+#ggplot2::ggsave(elev_points_map1, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/elev_points_map2v1.png",
+ #               height =  5,
+  #              width = 7.5,
+   #             dpi = 300, 
+    #            units = "in", 
+     #           bg = "white")
 
 ############################
 # bin species with elevation
 ############################
 
+elev_vect_ord <- c(
+"0-250",
+"250-500",
+"500-750",
+"750-1000",
+"1000-1250",
+"1250-1500",
+"1500-1750",
+"1750-2000",
+">2000"
+)
+
+
 elev_bin_plot <- df_elev_epqs |>
   dplyr::mutate(
-     elev_bin = dplyr::case_when(elevation < 250 ~ "A", .default = "ucat"),
-     elev_bin = dplyr::case_when(elevation >= 250 &  elevation < 500 ~ "B", .default = elev_bin),
-     elev_bin = dplyr::case_when(elevation >= 500 &  elevation < 750 ~ "C", .default = elev_bin),
-     elev_bin = dplyr::case_when(elevation >= 750 &  elevation < 1000 ~ "D", .default = elev_bin),
-     elev_bin = dplyr::case_when(elevation >= 1000 &  elevation < 1250 ~ "E", .default = elev_bin),
-     elev_bin = dplyr::case_when(elevation >= 1250 &  elevation < 1500 ~ "F", .default = elev_bin),
-     elev_bin = dplyr::case_when(elevation >= 1500 &  elevation < 1750 ~ "G", .default = elev_bin),
-     elev_bin = dplyr::case_when(elevation >= 1750 &  elevation < 2000 ~ "H", .default = elev_bin),
-     elev_bin = dplyr::case_when(elevation >= 2000 ~ "I", .default = elev_bin),
-     sp_name = paste0(Genus     ,"_", Species)
-     )|>
+    elev_bin = dplyr::case_when(elevation < 250 ~ "0-250", .default = "ucat"),
+    elev_bin = dplyr::case_when(elevation >= 250 &  elevation < 500 ~ "250-500", .default = elev_bin),
+    elev_bin = dplyr::case_when(elevation >= 500 &  elevation < 750 ~ "500-750", .default = elev_bin),
+    elev_bin = dplyr::case_when(elevation >= 750 &  elevation < 1000 ~ "750-1000", .default = elev_bin),
+    elev_bin = dplyr::case_when(elevation >= 1000 &  elevation < 1250 ~ "1000-1250", .default = elev_bin),
+    elev_bin = dplyr::case_when(elevation >= 1250 &  elevation < 1500 ~ "1250-1500", .default = elev_bin),
+    elev_bin = dplyr::case_when(elevation >= 1500 &  elevation < 1750 ~ "1500-1750", .default = elev_bin),
+    elev_bin = dplyr::case_when(elevation >= 1750 &  elevation < 2000 ~ "1750-2000", .default = elev_bin),
+    elev_bin = dplyr::case_when(elevation >= 2000 ~ ">2000", .default = elev_bin),
+    sp_name = paste0(Genus     ,"_", Species), 
+    elev_bin = factor(elev_bin, levels = elev_vect_ord)
+    
+  )|>
   dplyr::distinct(elev_bin, sp_name)|>
   dplyr::group_by(elev_bin)|>
   dplyr::summarise(
@@ -450,10 +637,12 @@ elev_bin_plot <- df_elev_epqs |>
   ggplot2::ggplot(ggplot2::aes(x=as.factor(elev_bin), y = Total_elev))+
   ggplot2::geom_bar( stat='identity',fill = "#56B4E9")+
   ggplot2::ylab("Species richness")+
-  ggplot2::xlab("Elevation class")
+  ggplot2::xlab("Elevation class")+
+  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, vjust = 1, hjust=1),
+                 legend.position = "none")
 
 ggplot2::ggsave(elev_bin_plot, 
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/elev_bin_plot02_v2.png",
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/elev_bin_plot02_accurate_v3.png",
                 height =  5,
                 width = 7.5,
                 dpi = 300, 
@@ -462,17 +651,20 @@ ggplot2::ggsave(elev_bin_plot,
 
 elev_means_01 <- df_elev_epqs |>
   dplyr::mutate(
-   sp_name = paste0(Genus     ,"_", Species)
+    sp_name = paste0(Genus     ,"_", Species)
   )|>
   ggplot2::ggplot()+
-  ggplot2::geom_boxplot( ggplot2::aes(x = sp_name, color = sp_name,  y = elevation ))+
-  ggplot2::ylab("Elevation")+
-  ggplot2::xlab("Species")+
+  ggplot2::geom_boxplot( ggplot2::aes(y = sp_name, 
+                                      color = sp_name, 
+                                      x = elevation ))+
+  ggplot2::ylab("Species")+
+  ggplot2::xlab("Elevation")+
   ggplot2::theme_bw()+
-  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1),
+  ggplot2::scale_x_continuous(breaks = c(0,250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250,2500, 2750))+
+  ggplot2::theme(#axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1),
                  legend.position = "none")
 
-ggplot2::ggsave(elev_means_01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/elev_means_02_v2.png",
+ggplot2::ggsave(elev_means_01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/elev_means_02_accurate_v4.png",
                 height =  5,
                 width = 7.5,
                 dpi = 300, 
@@ -492,9 +684,9 @@ elev_means_01_fams <- df_elev_epqs |>
   ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1),
                  legend.position = "none")+
   ggplot2::facet_wrap(~Family#, scales = "free"
-                      )
+  )
 
-ggplot2::ggsave(elev_means_01_fams, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/elev_means_02_famsv4.png",
+ggplot2::ggsave(elev_means_01_fams, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/elev_means_02_famsv4.png",
                 height =  10,
                 width = 7.5,
                 dpi = 300, 
@@ -519,6 +711,9 @@ species_raw <- df_elev_epqs |>
   dplyr::pull(sp_name)|>
   unique()
 
+####
+### version final Ordenada por familias con eje X alturas!!!!
+####
 
 elev_means_02 <- df_elev_epqs |>
   dplyr::mutate(
@@ -529,14 +724,16 @@ elev_means_02 <- df_elev_epqs |>
   )|>
   
   ggplot2::ggplot()+
-  ggplot2::geom_boxplot( ggplot2::aes(x = sp_name, color = sp_name,  y = elevation ))+
+  ggplot2::geom_boxplot( ggplot2::aes(y = sp_name, color = sp_name,  x = elevation ))+
   ggplot2::ylab("Elevation")+
   ggplot2::xlab("Species")+
   ggplot2::theme_bw()+
-  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1),
+ggplot2::scale_x_continuous(breaks = c(0,250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250,2500, 2750))+
+  
+ ggplot2::theme(#axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1),
                  legend.position = "none")
 
-ggplot2::ggsave(elev_means_02, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/elev_means_02_v3.png",
+ggplot2::ggsave(elev_means_02, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/elev_means_02_v4.png",
                 height =  5,
                 width = 7.5,
                 dpi = 300, 
@@ -588,11 +785,11 @@ land_use_map01 <-ggplot2::ggplot()+
   ggplot2::theme(legend.position = "none")
 
 unique(
-raw_landuse_cat$DESC_NIII)
+  raw_landuse_cat$DESC_NIII)
 
 
 ggplot2::ggsave(land_use_map01,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/land_use_map01.png",
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/land_use_map01.png",
                 height = 5, width = 8, 
                 bg =  "white",
                 dpi = 300)
@@ -612,7 +809,7 @@ land_use_map02 <- ggplot2::ggplot()+
 
 
 ggplot2::ggsave(land_use_map02,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/land_use_map02.png",
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/land_use_map02.png",
                 height = 5, width = 8, 
                 bg =  "white",
                 dpi = 300)
@@ -628,9 +825,9 @@ land_use_plot01 <- ocurr_landuse_L1|>
   ggplot2::ggplot(ggplot2::aes(x = DESC_NI) ) +
   ggplot2::geom_bar( fill =  "#009E73")+ 
   ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust=1),
-                                       legend.position = "none")
+                 legend.position = "none")
 ggplot2::ggsave(land_use_plot01,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/land_use_plot01.png",
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/land_use_plot01.png",
                 height = 5, width = 10, 
                 bg =  "white",
                 dpi = 300)
@@ -649,7 +846,7 @@ land_use_plot02 <- ocurr_landuse_L2|>
   ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust=1),
                  legend.position = "none")
 ggplot2::ggsave(land_use_plot02,
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/land_use_plot02.png",
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/land_use_plot02.png",
                 height = 5, width = 10, 
                 bg =  "white",
                 dpi = 300)
@@ -661,14 +858,14 @@ unique(vect_2$DESC_NII)
 ggplot2::ggplot( ) +
   tidyterra::geom_spatvector(data = terra::project(geo_pol_crop2,vect_2))+
   tidyterra::geom_spatvector(data = terra::subset(vect_2, vect_2$DESC_NII %in% c("Águas Continentais", "Águas Costeiras"),
-                                                 "DESC_NII"), 
+                                                  "DESC_NII"), 
                              ggplot2::aes(color = DESC_NII))+
   ggplot2::scale_color_viridis_d()
 
 
 ### temperature viz
 
-temp_rast <- terra::rast("C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/CHELSA_bio1_1981-2010_V.2.1.tiff")
+temp_rast <- terra::rast("C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/CHELSA_bio1_1981-2010_V.2.1.tiff")
 ggplot2::ggplot( ) +
   tidyterra::geom_spatraster(data = terra::crop(temp_rast, terra::project(raw_landuse_cat, temp_rast)))+
   tidyterra::geom_spatvector(data = vect_1, alpha = 0.25)+
@@ -690,7 +887,7 @@ temp_map01 <- ggplot2::ggplot()+
                              alpha = 0)+
   ggplot2::coord_sf(expand = FALSE)
 
-ggplot2::ggsave(temp_map01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/temp_map01.png",
+ggplot2::ggsave(temp_map01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/temp_map01.png",
                 height =  5,
                 width = 7.5,
                 dpi = 300, 
@@ -709,25 +906,25 @@ summary(df_elev_epqs$temp )
 hist((df_elev_epqs$temp ))
 hist(df_elev_epqs$elevation)
 #temp_bin_plot <- df_elev_epqs |>
-  #dplyr::mutate(
-    
-   # temp_bin = dplyr::case_when(temp < 12.5 ~ "A", .default = "ucat"),
-    #temp_bin = dplyr::case_when(temp >= 12.5 &  elevation < 15 ~ "B", .default = temp_bin),
-    #temp_bin = dplyr::case_when(temp >= 15 &  elevation < 17.5 ~ "C", .default = temp_bin),
-    #temp_bin = dplyr::case_when(temp >= 17.5 &  elevation < 20 ~ "D", .default = temp_bin),
-    #temp_bin = dplyr::case_when(temp >= 20 &  elevation < 22.5 ~ "E", .default = temp_bin),
-    #temp_bin = dplyr::case_when(temp >= 22.5  ~ "F", .default = temp_bin),
-    #sp_name = paste0(Genus     ,"_", Species)
-  #)|>
-  #dplyr::distinct(temp_bin, sp_name)|>
-  #dplyr::group_by(temp_bin)|>
-  #dplyr::summarise(
-   # Total_temp = dplyr::n()
-  #)|>
-  #ggplot2::ggplot(ggplot2::aes(x=as.factor(temp_bin), y = Total_temp))+
-  #ggplot2::geom_bar( stat='identity',fill = "#56B4E9")+
-  #ggplot2::ylab("Species richness")+
-  #ggplot2::xlab("Temperature class")
+#dplyr::mutate(
+
+# temp_bin = dplyr::case_when(temp < 12.5 ~ "A", .default = "ucat"),
+#temp_bin = dplyr::case_when(temp >= 12.5 &  elevation < 15 ~ "B", .default = temp_bin),
+#temp_bin = dplyr::case_when(temp >= 15 &  elevation < 17.5 ~ "C", .default = temp_bin),
+#temp_bin = dplyr::case_when(temp >= 17.5 &  elevation < 20 ~ "D", .default = temp_bin),
+#temp_bin = dplyr::case_when(temp >= 20 &  elevation < 22.5 ~ "E", .default = temp_bin),
+#temp_bin = dplyr::case_when(temp >= 22.5  ~ "F", .default = temp_bin),
+#sp_name = paste0(Genus     ,"_", Species)
+#)|>
+#dplyr::distinct(temp_bin, sp_name)|>
+#dplyr::group_by(temp_bin)|>
+#dplyr::summarise(
+# Total_temp = dplyr::n()
+#)|>
+#ggplot2::ggplot(ggplot2::aes(x=as.factor(temp_bin), y = Total_temp))+
+#ggplot2::geom_bar( stat='identity',fill = "#56B4E9")+
+#ggplot2::ylab("Species richness")+
+#ggplot2::xlab("Temperature class")
 
 temp_bin_plot <- df_elev_epqs |>
   ggplot2::ggplot()+
@@ -736,7 +933,7 @@ temp_bin_plot <- df_elev_epqs |>
 
 
 ggplot2::ggsave(temp_bin_plot, 
-                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/temp_bin_plot01.png",
+                filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/temp_bin_plot01.png",
                 height =  5,
                 width = 7.5,
                 dpi = 300, 
@@ -755,7 +952,7 @@ temp_means_01 <- df_elev_epqs |>
   ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1),
                  legend.position = "none")
 
-ggplot2::ggsave(temp_means_01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/temp_means_01.png",
+ggplot2::ggsave(temp_means_01, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/temp_means_01.png",
                 height =  5,
                 width = 7.5,
                 dpi = 300, 
@@ -774,8 +971,32 @@ temp_means_02 <- df_elev_epqs |>
   ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1),
                  legend.position = "none")
 
-ggplot2::ggsave(temp_means_02, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/outputs/temp_means_02.png",
+ggplot2::ggsave(temp_means_02, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/temp_means_02.png",
                 height =  5,
+                width = 7.5,
+                dpi = 300, 
+                units = "in", 
+                bg = "white")
+
+############################################  
+#### 15) Richness per municipality
+###################### ###################### 
+
+plot_munucip <- spp_df |>
+  dplyr::group_by(municipality)|>
+  dplyr::distinct(sp_name)|>
+  dplyr::summarise(
+    Total.spp = dplyr::n()
+  )|>
+  dplyr::arrange(Total.spp)|>
+  ggplot2::ggplot()+
+  ggplot2::geom_col(ggplot2::aes(x = Total.spp, y =  reorder(municipality, Total.spp)))+
+  ggplot2::coord_cartesian(expand = FALSE)+
+  ggplot2::xlab("Species Richness")+
+  ggplot2::ylab("Municipality")
+
+ggplot2::ggsave(plot_munucip, filename = "C:/Users/franc/Documents/Research/Brazil - julio insectos/mantodea_project_BR/plots/plot_munucip.png",
+                height =  8,
                 width = 7.5,
                 dpi = 300, 
                 units = "in", 
